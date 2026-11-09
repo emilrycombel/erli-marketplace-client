@@ -1,0 +1,66 @@
+package pl.erli.client.model;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Map;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record Product(
+        String externalId,
+        Integer marketplaceId,
+        String slug,
+        String name,
+        Object description,
+        String ean,
+        String sku,
+        List<Map<String, Object>> externalReferences,
+        Integer sourceFulfillmentProductId,
+        List<String> importantFeatures,
+        List<Map<String, Object>> externalAttributes,
+        List<Map<String, Object>> externalCategories,
+        Map<String, Object> externalVariantGroup,
+        List<Map<String, Object>> externalResponsibleProducer,
+        List<Map<String, Object>> externalResponsiblePerson,
+        List<ProductImage> images,
+        List<Map<String, Object>> files,
+        Integer price,
+        Integer mobilePrice,
+        Integer cataloguePrice,
+        String referencePriceType,
+        Integer stock,
+        String status,
+        Boolean archived,
+        DispatchTime dispatchTime,
+        String deliveryPriceList,
+        Double weight,
+        String obligatoryIdentifier,
+        String voluntaryIdentifier,
+        String returnIdentifier,
+        String invoiceType,
+        String taxRate,
+        Integer basketLimit,
+        String energyLabel,
+        String instructionWithSafetyInformation,
+        String informationCard,
+        Number producerId,
+        Number responsiblePersonId,
+        String externalMetaProductId,
+        List<Map<String, Object>> productAttachments,
+        Integer automaticDiscountRuleId,
+        String markets,
+        Map<String, Object> translations,
+        List<Map<String, Object>> attributes,
+        List<List<Map<String, Object>>> categories,
+        Map<String, Object> packaging,
+        List<String> buyableProblems,
+        String externalDescriptionHash,
+        String externalDescription,
+        Map<String, Boolean> frozen,
+        OffsetDateTime created,
+        OffsetDateTime updated,
+        OffsetDateTime archivedAt,
+        List<Number> producerIds,
+        List<Number> responsiblePersonIds
+) {}
