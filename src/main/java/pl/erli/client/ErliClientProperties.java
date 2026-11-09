@@ -7,8 +7,10 @@ public record ErliClientProperties(
         String baseUrl,
         String token,
         String tokenFile,
+        String tokenStore,
         RateLimit rateLimit,
-        PaginationConfig pagination
+        PaginationConfig pagination,
+        JdbcConfig jdbc
 ) {
     public ErliClientProperties {
         if (baseUrl == null) baseUrl = "https://erli.pl/svc/shop-api";
@@ -27,6 +29,13 @@ public record ErliClientProperties(
         public PaginationConfig {
             if (pageSize <= 0) pageSize = 50;
             if (prefetchPages <= 0) prefetchPages = 2;
+        }
+    }
+
+    public record JdbcConfig(String tableName, String storeKey, boolean initTable) {
+        public JdbcConfig {
+            if (tableName == null) tableName = "erli_token";
+            if (storeKey == null) storeKey = "default";
         }
     }
 }

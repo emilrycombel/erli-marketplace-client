@@ -12,6 +12,7 @@ public record ProductUpdate(
         String ean,
         String sku,
         List<Map<String, Object>> externalReferences,
+        Integer sourceFulfillmentProductId,
         List<String> importantFeatures,
         List<Map<String, Object>> externalAttributes,
         List<Map<String, Object>> externalCategories,
@@ -36,28 +37,44 @@ public record ProductUpdate(
         String invoiceType,
         String taxRate,
         Integer basketLimit,
+        String energyLabel,
+        String instructionWithSafetyInformation,
+        String informationCard,
+        Integer producerId,
+        Integer responsiblePersonId,
+        String externalMetaProductId,
+        List<Map<String, Object>> productAttachments,
+        Integer automaticDiscountRuleId,
+        Map<String, Object> packaging,
         Map<String, Boolean> frozen,
         String newExternalId,
         Object overrideFrozen
 ) {
+    // index: 0    1    2    3    4    5    6    7    8    9    10
+    //        11   12   13   14   15   16   17   18   19   20   21
+    //        22   23   24   25   26   27   28   29   30   31   32
+    //        33   34   35   36   37   38   39   40   41
     public static ProductUpdate withStock(int stock) {
         return new ProductUpdate(
                 null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, stock, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, stock, null, null,
+                null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null);
     }
 
     public static ProductUpdate withPrice(int priceInGrosze) {
         return new ProductUpdate(
                 null, null, null, null, null, null, null, null, null, null, null,
-                null, null, priceInGrosze, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, priceInGrosze, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null);
     }
 
     public static ProductUpdate withStatus(String status) {
         return new ProductUpdate(
                 null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, status, null, null,
-                null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, status, null,
+                null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null);
     }
 }
