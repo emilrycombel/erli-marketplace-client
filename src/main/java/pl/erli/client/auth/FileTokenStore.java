@@ -4,6 +4,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
@@ -39,7 +40,7 @@ public class FileTokenStore implements TokenStore {
             Files.writeString(tokenFile, token);
             log.debug("Token saved to {}", tokenFile);
         } catch (IOException e) {
-            log.error("Failed to save token to {}", tokenFile, e);
+            throw new UncheckedIOException("Failed to save token to " + tokenFile, e);
         }
     }
 }

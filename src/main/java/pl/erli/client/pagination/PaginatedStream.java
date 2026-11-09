@@ -5,51 +5,33 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-/**
- * Creates a lazy {@link Stream} over paginated API results with configurable prefetch.
- * Pages are loaded on demand with {@code prefetchCount} pages always fetched ahead
- * using virtual threads.
- */
 public final class PaginatedStream {
 
     private static final Logger log = LogManager.getLogger(PaginatedStream.class);
 
     private PaginatedStream() {}
 
-    /**
-     * A page of results returned by the page fetcher.
-     *
-     * @param items the items on this page
-     * @param nextCursor the cursor for fetching the next page, or null if this is the last page
-     * @param <T> the item type
-     */
     public record Page<T>(List<T> items, Object nextCursor) {}
 
-    /**
-     * Creates a lazy stream that fetches pages on demand with prefetch.
-     *
-     * @param pageFetcher function that takes a cursor (null for first page) and returns a Page
-     * @param pageSize the page size (used to detect last page)
-     * @param prefetchCount how many pages to fetch ahead (default 2)
-     * @param <T> the item type
-     * @return a Stream of all items across all pages
-     */
     public static <T> Stream<T> create(Function<Object, Page<T>> pageFetcher,
                                         int pageSize, int prefetchCount) {
         var queue = new LinkedBlockingQueue<List<T>>(prefetchCount + 1);
         var sentinel = List.<T>of();
+        var error = new AtomicReference<Throwable>();
 
-        Thread.ofVirtual().name("erli-paginator").start(() -> {
+        Thread producer = Thread.ofVirtual().name("erli-paginator").start(() -> {
             try {
                 Object cursor = null;
-                while (true) {
+                while (!Thread.currentThread().isInterrupted()) {
                     Page<T> page = pageFetcher.apply(cursor);
                     List<T> items = page.items();
                     if (items == null || items.isEmpty()) {
@@ -65,6 +47,7 @@ public final class PaginatedStream {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             } catch (Exception e) {
+                error.set(e);
                 log.error("Error during page prefetch", e);
             } finally {
                 try {
@@ -86,6 +69,10 @@ public final class PaginatedStream {
                         List<T> page = queue.take();
                         if (page.isEmpty()) {
                             done = true;
+                            Throwable t = error.get();
+                            if (t != null) {
+                                throw t instanceof RuntimeException re ? re : new RuntimeException(t);
+                            }
                             return false;
                         }
                         currentPage = page.iterator();
@@ -101,13 +88,14 @@ public final class PaginatedStream {
             @Override
             public T next() {
                 if (!hasNext()) {
-                    throw new java.util.NoSuchElementException();
+                    throw new NoSuchElementException();
                 }
                 return currentPage.next();
             }
         };
 
         Spliterator<T> spliterator = Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED);
-        return StreamSupport.stream(spliterator, false);
+        return StreamSupport.stream(spliterator, false)
+                .onClose(() -> producer.interrupt());
     }
 }

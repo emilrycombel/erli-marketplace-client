@@ -34,7 +34,7 @@ class PaginatedStreamTest {
         assertEquals(10, result.size());
         assertEquals("item-0", result.getFirst());
         assertEquals("item-9", result.getLast());
-        assertTrue(pageCount.get() >= 4); // at least 4 pages: 3+3+3+1
+        assertTrue(pageCount.get() >= 4);
     }
 
     @Test
@@ -73,11 +73,39 @@ class PaginatedStreamTest {
             return new PaginatedStream.Page<>(items, offset + 1);
         }, 1, 2);
 
-        // Only take 3 items - should not fetch all pages
         List<String> result = stream.limit(3).toList();
 
         assertEquals(3, result.size());
-        // With prefetch of 2, it may fetch a few more but not hundreds
         assertTrue(fetchCount.get() <= 6, "Should not fetch too many pages, got: " + fetchCount.get());
+    }
+
+    @Test
+    void shouldPropagateExceptionFromFetcher() {
+        Stream<String> stream = PaginatedStream.create(cursor -> {
+            if (cursor == null) {
+                return new PaginatedStream.Page<>(List.of("first"), 1);
+            }
+            throw new RuntimeException("API failure");
+        }, 1, 2);
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> stream.toList());
+        assertEquals("API failure", ex.getMessage());
+    }
+
+    @Test
+    void shouldStopProducerOnStreamClose() throws InterruptedException {
+        AtomicInteger fetchCount = new AtomicInteger(0);
+
+        try (Stream<String> stream = PaginatedStream.create(cursor -> {
+            fetchCount.incrementAndGet();
+            int offset = cursor == null ? 0 : (int) cursor;
+            return new PaginatedStream.Page<>(List.of("item-" + offset), offset + 1);
+        }, 1, 2)) {
+            stream.limit(2).toList();
+        }
+
+        int countAtClose = fetchCount.get();
+        Thread.sleep(200);
+        assertEquals(countAtClose, fetchCount.get(), "Producer should stop after stream close");
     }
 }

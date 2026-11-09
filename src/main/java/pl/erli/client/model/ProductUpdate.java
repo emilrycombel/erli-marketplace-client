@@ -39,4 +39,25 @@ public record ProductUpdate(
         Map<String, Boolean> frozen,
         String newExternalId,
         Object overrideFrozen
-) {}
+) {
+    public static ProductUpdate withStock(int stock) {
+        return new ProductUpdate(
+                null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, stock, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null);
+    }
+
+    public static ProductUpdate withPrice(int priceInGrosze) {
+        return new ProductUpdate(
+                null, null, null, null, null, null, null, null, null, null, null,
+                null, null, priceInGrosze, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null);
+    }
+
+    public static ProductUpdate withStatus(String status) {
+        return new ProductUpdate(
+                null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, status, null, null,
+                null, null, null, null, null, null, null, null, null, null, null);
+    }
+}

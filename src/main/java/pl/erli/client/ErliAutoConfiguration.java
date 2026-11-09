@@ -1,6 +1,7 @@
 package pl.erli.client;
 
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -27,12 +28,12 @@ public class ErliAutoConfiguration {
         if (properties.token() != null && !properties.token().isBlank()) {
             return new StaticTokenProvider(properties.token());
         }
-        throw new IllegalStateException(
-                "No Erli token configured. Set erli.api.token, erli.api.token-file, or provide a TokenStore bean.");
+        return null;
     }
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(TokenProvider.class)
     public ErliClient erliClient(ErliClientProperties properties, TokenProvider tokenProvider) {
         var restClient = ErliRestClientFactory.create(
                 properties.baseUrl(),

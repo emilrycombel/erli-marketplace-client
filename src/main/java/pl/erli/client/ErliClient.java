@@ -114,24 +114,15 @@ public class ErliClient {
     // --- Convenience offer methods ---
 
     public ProductUpdateResponse updateStock(String externalId, int stock) {
-        return updateProduct(externalId, new ProductUpdate(
-                null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, stock, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null));
+        return updateProduct(externalId, ProductUpdate.withStock(stock));
     }
 
     public ProductUpdateResponse updatePrice(String externalId, int priceInGrosze) {
-        return updateProduct(externalId, new ProductUpdate(
-                null, null, null, null, null, null, null, null, null, null, null,
-                null, null, priceInGrosze, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null));
+        return updateProduct(externalId, ProductUpdate.withPrice(priceInGrosze));
     }
 
     public ProductUpdateResponse deactivateProduct(String externalId) {
-        return updateProduct(externalId, new ProductUpdate(
-                null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, "inactive", null, null,
-                null, null, null, null, null, null, null, null, null, null, null));
+        return updateProduct(externalId, ProductUpdate.withStatus("inactive"));
     }
 
     // --- Competition by EAN ---
