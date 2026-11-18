@@ -38,6 +38,7 @@ public class RateLimitInterceptor implements ClientHttpRequestInterceptor {
                 Thread.currentThread().interrupt();
                 return response;
             }
+            response.close();
             response = execution.execute(request, body);
         }
 

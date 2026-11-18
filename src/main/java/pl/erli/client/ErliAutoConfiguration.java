@@ -7,6 +7,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import pl.erli.client.auth.*;
 import pl.erli.client.http.ErliRestClientFactory;
@@ -42,6 +43,7 @@ public class ErliAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @Conditional(ErliTokenConfiguredCondition.class)
     public TokenProvider erliTokenProvider(ErliClientProperties properties,
                                            Optional<TokenStore> tokenStore) {
         if (tokenStore.isPresent()) {
@@ -53,7 +55,8 @@ public class ErliAutoConfiguration {
         if (properties.token() != null && !properties.token().isBlank()) {
             return new StaticTokenProvider(properties.token());
         }
-        return null;
+        throw new IllegalStateException(
+                "erli.api.token-store=jdbc requires a DataSource bean, or set erli.api.token / erli.api.token-file");
     }
 
     @Bean
