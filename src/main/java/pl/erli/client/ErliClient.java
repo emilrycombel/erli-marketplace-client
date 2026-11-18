@@ -14,6 +14,7 @@ import java.util.stream.Stream;
 public class ErliClient {
 
     private static final Logger log = LogManager.getLogger(ErliClient.class);
+    private static final int CATEGORY_PAGE_SIZE = 200;
 
     private final RestClient restClient;
     private final int defaultPageSize;
@@ -220,6 +221,34 @@ public class ErliClient {
                 .retrieve()
                 .body(Integer.class);
         return count != null ? count : 0;
+    }
+
+    // --- Categories and commissions ---
+
+    public Stream<Category> streamCategories() {
+        log.debug("Streaming categories");
+        return PaginatedStream.create(cursor -> {
+            List<Category> categories = restClient.post()
+                    .uri("/dictionaries/category/_search")
+                    .body(new CategorySearchRequest(CATEGORY_PAGE_SIZE, (Integer) cursor))
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<List<Category>>() {});
+            if (categories == null || categories.isEmpty()) {
+                return new PaginatedStream.Page<>(List.of(), null);
+            }
+            return new PaginatedStream.Page<>(categories, categories.getLast().id());
+        }, CATEGORY_PAGE_SIZE, prefetchPages);
+    }
+
+    public int estimateCommission(int categoryId, int unitPrice, int quantity) {
+        log.debug("POST /commissions/_estimate categoryId={} unitPrice={} quantity={}",
+                categoryId, unitPrice, quantity);
+        CommissionEstimate estimate = restClient.post()
+                .uri("/commissions/_estimate")
+                .body(new EstimateCommissionRequest(categoryId, quantity, unitPrice))
+                .retrieve()
+                .body(CommissionEstimate.class);
+        return estimate.commission();
     }
 
     // --- Private helpers ---

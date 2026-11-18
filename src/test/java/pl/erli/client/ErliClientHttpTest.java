@@ -198,6 +198,44 @@ class ErliClientHttpTest {
                 () -> client.searchProducts(new ProductSearchRequest(null, null, null)).toList());
     }
 
+    @Test
+    void streamCategoriesPagesByIdAtMaxLimit() {
+        var firstPage = new StringBuilder("[");
+        for (int id = 1; id <= 200; id++) {
+            if (id > 1) firstPage.append(',');
+            firstPage.append(category(id));
+        }
+        replies.add(new Reply(200, firstPage.append(']').toString()));
+        replies.add(new Reply(200, "[" + category(201) + "]"));
+
+        List<Category> categories = client.streamCategories().toList();
+
+        assertEquals(201, categories.size());
+        assertEquals("Meble", categories.getFirst().breadcrumb().getLast().name());
+        assertTrue(categories.getFirst().leaf());
+        assertEquals("/svc/shop-api/dictionaries/category/_search", requests.get(0).path());
+        assertEquals("{\"limit\":200}", requests.get(0).body());
+        assertEquals("{\"limit\":200,\"after\":200}", requests.get(1).body());
+    }
+
+    @Test
+    void estimateCommissionSendsCategoryAndPrice() {
+        replies.add(new Reply(200, "{\"commission\":850}"));
+
+        assertEquals(850, client.estimateCommission(123, 10000, 2));
+
+        Recorded r = requests.getFirst();
+        assertEquals("POST", r.method());
+        assertEquals("/svc/shop-api/commissions/_estimate", r.path());
+        assertEquals("{\"categoryId\":123,\"quantity\":2,\"unitPrice\":10000}", r.body());
+    }
+
+    private static String category(int id) {
+        return """
+                {"id":%d,"name":"Kategoria %d","leaf":true,
+                 "breadcrumb":[{"id":1,"name":"Dom i Ogród"},{"id":%d,"name":"Meble"}]}""".formatted(id, id, id);
+    }
+
     private static String product(String id) {
         return """
                 {"externalId":"%s","marketplaceId":1,"slug":"s","name":"Kurtka zimowa","ean":"5901234123457",
