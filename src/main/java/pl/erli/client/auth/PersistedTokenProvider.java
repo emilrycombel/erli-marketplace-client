@@ -8,6 +8,7 @@ public class PersistedTokenProvider implements TokenProvider {
     private static final Logger log = LogManager.getLogger(PersistedTokenProvider.class);
 
     private final TokenStore tokenStore;
+    private final Object lock = new Object();
     private volatile String cachedToken;
 
     public PersistedTokenProvider(TokenStore tokenStore) {
@@ -17,12 +18,17 @@ public class PersistedTokenProvider implements TokenProvider {
     @Override
     public String getToken() {
         String token = cachedToken;
-        if (token == null) {
-            token = tokenStore.load().orElse(null);
-            if (token != null) {
-                cachedToken = token;
-                log.debug("Token loaded from store");
+        if (token != null) {
+            return token;
+        }
+        synchronized (lock) {
+            if (cachedToken == null) {
+                cachedToken = tokenStore.load().orElse(null);
+                if (cachedToken != null) {
+                    log.debug("Token loaded from store");
+                }
             }
+            token = cachedToken;
         }
         if (token == null) {
             throw new IllegalStateException("No token available in store");
@@ -31,11 +37,18 @@ public class PersistedTokenProvider implements TokenProvider {
     }
 
     public void saveToken(String token) {
-        this.cachedToken = token;
-        tokenStore.save(token);
+        if (token == null || token.isBlank()) {
+            throw new IllegalArgumentException("Token must not be null or blank");
+        }
+        synchronized (lock) {
+            tokenStore.save(token);
+            cachedToken = token;
+        }
     }
 
     public void invalidate() {
-        this.cachedToken = null;
+        synchronized (lock) {
+            cachedToken = null;
+        }
     }
 }

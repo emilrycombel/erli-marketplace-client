@@ -64,27 +64,39 @@ public class JdbcTokenStore implements TokenStore {
     @Override
     public void save(String token) {
         try (Connection conn = dataSource.getConnection()) {
-            conn.setAutoCommit(false);
+            boolean autoCommit = conn.getAutoCommit();
+            // Each statement commits on its own, so a rejected INSERT can't abort the retry (PostgreSQL).
+            conn.setAutoCommit(true);
             try {
-                int updated = executeUpdate(conn,
-                        "UPDATE " + tableName + " SET token = ?, updated_at = CURRENT_TIMESTAMP WHERE store_key = ?",
-                        token, storeKey);
-                if (updated == 0) {
-                    executeUpdate(conn,
-                            "INSERT INTO " + tableName + " (store_key, token, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
-                            storeKey, token);
+                if (update(conn, token) == 0) {
+                    try {
+                        executeUpdate(conn,
+                                "INSERT INTO " + tableName + " (store_key, token, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
+                                storeKey, token);
+                    } catch (SQLException e) {
+                        // Another instance inserted the same key first; overwrite its row instead.
+                        if (!isIntegrityViolation(e) || update(conn, token) == 0) {
+                            throw e;
+                        }
+                    }
                 }
-                conn.commit();
                 log.debug("Token saved for key '{}' in table '{}'", storeKey, tableName);
-            } catch (SQLException e) {
-                conn.rollback();
-                throw e;
             } finally {
-                conn.setAutoCommit(true);
+                conn.setAutoCommit(autoCommit);
             }
         } catch (SQLException e) {
             throw new IllegalStateException("Failed to save token for key '" + storeKey + "'", e);
         }
+    }
+
+    private int update(Connection conn, String token) throws SQLException {
+        return executeUpdate(conn,
+                "UPDATE " + tableName + " SET token = ?, updated_at = CURRENT_TIMESTAMP WHERE store_key = ?",
+                token, storeKey);
+    }
+
+    private static boolean isIntegrityViolation(SQLException e) {
+        return e.getSQLState() != null && e.getSQLState().startsWith("23");
     }
 
     private int executeUpdate(Connection conn, String sql, String... params) throws SQLException {

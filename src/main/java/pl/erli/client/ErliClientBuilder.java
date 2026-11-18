@@ -4,6 +4,7 @@ import pl.erli.client.auth.*;
 import pl.erli.client.http.ErliRestClientFactory;
 
 import java.nio.file.Path;
+import java.time.Duration;
 
 public class ErliClientBuilder {
 
@@ -16,6 +17,18 @@ public class ErliClientBuilder {
     private long initialDelayMs = 1000;
     private int pageSize = 50;
     private int prefetchPages = 2;
+    private Duration connectTimeout = Duration.ofSeconds(10);
+    private Duration readTimeout = Duration.ofSeconds(30);
+
+    public ErliClientBuilder connectTimeout(Duration connectTimeout) {
+        this.connectTimeout = connectTimeout;
+        return this;
+    }
+
+    public ErliClientBuilder readTimeout(Duration readTimeout) {
+        this.readTimeout = readTimeout;
+        return this;
+    }
 
     public ErliClientBuilder baseUrl(String baseUrl) {
         this.baseUrl = baseUrl;
@@ -64,7 +77,8 @@ public class ErliClientBuilder {
 
     public ErliClient build() {
         TokenProvider resolvedProvider = resolveTokenProvider();
-        var restClient = ErliRestClientFactory.create(baseUrl, resolvedProvider, maxRetries, initialDelayMs);
+        var restClient = ErliRestClientFactory.create(baseUrl, resolvedProvider, maxRetries, initialDelayMs,
+                connectTimeout, readTimeout);
         return new ErliClient(restClient, pageSize, prefetchPages);
     }
 

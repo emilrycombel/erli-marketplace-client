@@ -1,41 +1,35 @@
 package pl.erli.client;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
+
+import java.time.Duration;
 
 @ConfigurationProperties(prefix = "erli.api")
 public record ErliClientProperties(
-        String baseUrl,
+        @DefaultValue("https://erli.pl/svc/shop-api") String baseUrl,
         String token,
         String tokenFile,
         String tokenStore,
-        RateLimit rateLimit,
-        PaginationConfig pagination,
-        JdbcConfig jdbc
+        @DefaultValue("10s") Duration connectTimeout,
+        @DefaultValue("30s") Duration readTimeout,
+        @DefaultValue RateLimit rateLimit,
+        @DefaultValue PaginationConfig pagination,
+        @DefaultValue JdbcConfig jdbc
 ) {
-    public ErliClientProperties {
-        if (baseUrl == null) baseUrl = "https://erli.pl/svc/shop-api";
-        if (rateLimit == null) rateLimit = new RateLimit(3, 1000);
-        if (pagination == null) pagination = new PaginationConfig(50, 2);
-    }
+    public record RateLimit(
+            @DefaultValue("3") int maxRetries,
+            @DefaultValue("1000") long initialDelayMs
+    ) {}
 
-    public record RateLimit(int maxRetries, long initialDelayMs) {
-        public RateLimit {
-            if (maxRetries < 0) maxRetries = 3;
-            if (initialDelayMs <= 0) initialDelayMs = 1000;
-        }
-    }
+    public record PaginationConfig(
+            @DefaultValue("50") int pageSize,
+            @DefaultValue("2") int prefetchPages
+    ) {}
 
-    public record PaginationConfig(int pageSize, int prefetchPages) {
-        public PaginationConfig {
-            if (pageSize <= 0) pageSize = 50;
-            if (prefetchPages <= 0) prefetchPages = 2;
-        }
-    }
-
-    public record JdbcConfig(String tableName, String storeKey, boolean initTable) {
-        public JdbcConfig {
-            if (tableName == null) tableName = "erli_token";
-            if (storeKey == null) storeKey = "default";
-        }
-    }
+    public record JdbcConfig(
+            @DefaultValue("erli_token") String tableName,
+            @DefaultValue("default") String storeKey,
+            @DefaultValue("true") boolean initTable
+    ) {}
 }

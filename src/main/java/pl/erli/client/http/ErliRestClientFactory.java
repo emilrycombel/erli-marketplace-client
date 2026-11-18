@@ -6,15 +6,22 @@ import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
+import java.net.http.HttpClient;
+import java.time.Duration;
+
 public class ErliRestClientFactory {
 
     private ErliRestClientFactory() {}
 
     public static RestClient create(String baseUrl, TokenProvider tokenProvider,
-                                     int maxRetries, long initialDelayMs) {
+                                     int maxRetries, long initialDelayMs,
+                                     Duration connectTimeout, Duration readTimeout) {
+        var httpClient = HttpClient.newBuilder().connectTimeout(connectTimeout).build();
+        var requestFactory = new JdkClientHttpRequestFactory(httpClient);
+        requestFactory.setReadTimeout(readTimeout);
         return RestClient.builder()
                 .baseUrl(baseUrl)
-                .requestFactory(new JdkClientHttpRequestFactory())
+                .requestFactory(requestFactory)
                 .defaultHeader("Content-Type", MediaType.APPLICATION_JSON_VALUE)
                 .defaultHeader("Accept", MediaType.APPLICATION_JSON_VALUE)
                 .requestInterceptor((request, body, execution) -> {

@@ -8,13 +8,16 @@ import pl.erli.client.pagination.PaginatedStream;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.client.RestClient;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Stream;
 
 public class ErliClient {
 
     private static final Logger log = LogManager.getLogger(ErliClient.class);
     private static final int CATEGORY_PAGE_SIZE = 200;
+    private static final Set<String> UNIQUE_PRODUCT_SORT_FIELDS = Set.of("externalId", "marketplaceId");
 
     private final RestClient restClient;
     private final int defaultPageSize;
@@ -58,19 +61,21 @@ public class ErliClient {
     }
 
     public Stream<Product> searchProducts(ProductSearchRequest request) {
-        log.debug("Streaming products search");
-        int pageSize = request.pagination() != null && request.pagination().limit() != null
-                ? request.pagination().limit() : defaultPageSize;
+        Pagination requested = request.pagination() != null
+                ? request.pagination() : new Pagination(null, null, null, null);
+        String sortField = requested.sortField() != null ? requested.sortField() : "externalId";
+        if (!UNIQUE_PRODUCT_SORT_FIELDS.contains(sortField)) {
+            throw new IllegalArgumentException("Product streams must sort by externalId or marketplaceId. "
+                    + "Sorting by " + sortField + " skips products that share a value across a page boundary; "
+                    + "filter on " + sortField + " instead.");
+        }
+        Pagination first = withDefaultLimit(requested);
+        List<String> fields = includeField(request.fields(), sortField);
+        log.debug("Streaming products search sorted by {}", sortField);
 
         return PaginatedStream.create(cursor -> {
-            Pagination pagination = request.pagination() != null
-                    ? request.pagination().withAfter(cursor)
-                    : new Pagination(null, cursor, null, pageSize);
-            if (pagination.limit() == null) {
-                pagination = new Pagination(pagination.sortField(), pagination.after(),
-                        pagination.order(), pageSize);
-            }
-            var searchReq = new ProductSearchRequest(pagination, request.filter(), request.fields());
+            var searchReq = new ProductSearchRequest(
+                    cursor == null ? first : first.withAfter(cursor), request.filter(), fields);
             List<Product> products = restClient.post()
                     .uri("/products/_search")
                     .body(searchReq)
@@ -80,9 +85,9 @@ public class ErliClient {
                 return new PaginatedStream.Page<>(List.of(), null);
             }
             Product last = products.getLast();
-            Object nextCursor = resolveProductCursor(last, pagination.sortField());
+            Object nextCursor = "marketplaceId".equals(sortField) ? last.marketplaceId() : last.externalId();
             return new PaginatedStream.Page<>(products, nextCursor);
-        }, pageSize, prefetchPages);
+        }, prefetchPages);
     }
 
     public void createProduct(String externalId, ProductCreate product) {
@@ -150,18 +155,12 @@ public class ErliClient {
 
     public Stream<Order> searchOrders(OrderSearchRequest request) {
         log.debug("Streaming orders search");
-        int pageSize = request.pagination() != null && request.pagination().limit() != null
-                ? request.pagination().limit() : defaultPageSize;
+        Pagination first = withDefaultLimit(request.pagination() != null
+                ? request.pagination() : new Pagination("updated", null, SortOrder.ASC, null));
 
         return PaginatedStream.create(cursor -> {
-            Pagination pagination = request.pagination() != null
-                    ? request.pagination().withAfter(cursor)
-                    : new Pagination("updated", cursor, SortOrder.ASC, pageSize);
-            if (pagination.limit() == null) {
-                pagination = new Pagination(pagination.sortField(), pagination.after(),
-                        pagination.order(), pageSize);
-            }
-            var searchReq = new OrderSearchRequest(pagination, request.filter());
+            var searchReq = new OrderSearchRequest(
+                    cursor == null ? first : first.withAfter(cursor), request.filter());
             List<Order> orders = restClient.post()
                     .uri("/orders/_search")
                     .body(searchReq)
@@ -170,9 +169,8 @@ public class ErliClient {
             if (orders == null || orders.isEmpty()) {
                 return new PaginatedStream.Page<>(List.of(), null);
             }
-            String nextCursor = orders.getLast().cursor();
-            return new PaginatedStream.Page<>(orders, nextCursor);
-        }, pageSize, prefetchPages);
+            return new PaginatedStream.Page<>(orders, orders.getLast().cursor());
+        }, prefetchPages);
     }
 
     public void updateOrderStatus(String orderId, String status) {
@@ -237,7 +235,7 @@ public class ErliClient {
                 return new PaginatedStream.Page<>(List.of(), null);
             }
             return new PaginatedStream.Page<>(categories, categories.getLast().id());
-        }, CATEGORY_PAGE_SIZE, prefetchPages);
+        }, prefetchPages);
     }
 
     public int estimateCommission(int categoryId, int unitPrice, int quantity) {
@@ -253,18 +251,17 @@ public class ErliClient {
 
     // --- Private helpers ---
 
-    private Object resolveProductCursor(Product product, String sortField) {
-        if (sortField == null) return product.externalId();
-        return switch (sortField) {
-            case "externalId" -> product.externalId();
-            case "marketplaceId" -> product.marketplaceId();
-            case "name" -> product.name();
-            case "ean" -> product.ean();
-            case "sku" -> product.sku();
-            case "created" -> product.created();
-            case "updated" -> product.updated();
-            case "archivedAt" -> product.archivedAt();
-            default -> product.externalId();
-        };
+    private Pagination withDefaultLimit(Pagination pagination) {
+        return pagination.limit() != null ? pagination
+                : new Pagination(pagination.sortField(), pagination.after(), pagination.order(), defaultPageSize);
+    }
+
+    private static List<String> includeField(List<String> fields, String field) {
+        if (fields == null || fields.contains(field)) {
+            return fields;
+        }
+        var withField = new ArrayList<>(fields);
+        withField.add(field);
+        return withField;
     }
 }

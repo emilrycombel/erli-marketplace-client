@@ -11,6 +11,8 @@ import pl.erli.client.model.*;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import org.springframework.web.client.ResourceAccessException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
@@ -130,6 +132,7 @@ class ErliClientHttpTest {
     void productSearchSerializesFilterAndPaginatesByExternalId() {
         replies.add(new Reply(200, "[" + product("a") + "," + product("b") + "]"));
         replies.add(new Reply(200, "[" + product("c") + "]"));
+        replies.add(new Reply(200, "[]"));
 
         List<String> ids = client.searchProducts(new ProductSearchRequest(null,
                         Filter.and(Filter.eq("status", "active"), Filter.gt("stock", 0)), null))
@@ -155,6 +158,57 @@ class ErliClientHttpTest {
         assertEquals(1, orders.getFirst().items().size());
         assertTrue(requests.get(0).body().contains("\"sortField\":\"updated\""), requests.get(0).body());
         assertTrue(requests.get(1).body().contains("\"after\":\"100;2x2\""), requests.get(1).body());
+    }
+
+    @Test
+    void searchesStartFromTheCallersCursor() {
+        replies.add(new Reply(200, "[]"));
+        replies.add(new Reply(200, "[]"));
+
+        client.searchOrders(new OrderSearchRequest(
+                new Pagination("updated", "100;5x5", SortOrder.ASC, null), null)).toList();
+        client.searchProducts(new ProductSearchRequest(
+                new Pagination("externalId", "sku-9", SortOrder.ASC, null), null, null)).toList();
+
+        assertTrue(requests.get(0).body().contains("\"after\":\"100;5x5\""), requests.get(0).body());
+        assertTrue(requests.get(1).body().contains("\"after\":\"sku-9\""), requests.get(1).body());
+    }
+
+    @Test
+    void productProjectionAlwaysIncludesTheSortField() {
+        replies.add(new Reply(200, "[]"));
+
+        client.searchProducts(new ProductSearchRequest(null, null, List.of("price"))).toList();
+
+        assertTrue(requests.getFirst().body().contains("\"fields\":[\"price\",\"externalId\"]"),
+                requests.getFirst().body());
+    }
+
+    @Test
+    void rejectsProductSortsThatCanSkipTies() {
+        var bySku = new ProductSearchRequest(new Pagination("sku", null, SortOrder.ASC, null), null, null);
+
+        assertThrows(IllegalArgumentException.class, () -> client.searchProducts(bySku));
+        assertTrue(requests.isEmpty());
+    }
+
+    @Test
+    void timesOutWhenErliStopsResponding() {
+        server.createContext("/slow", ex -> {
+            try {
+                Thread.sleep(2_000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            ex.close();
+        });
+        var slowClient = new ErliClientBuilder()
+                .baseUrl("http://127.0.0.1:" + server.getAddress().getPort() + "/slow")
+                .token("test-key")
+                .readTimeout(Duration.ofMillis(200))
+                .build();
+
+        assertThrows(ResourceAccessException.class, slowClient::getShopInfo);
     }
 
     @Test
@@ -207,6 +261,7 @@ class ErliClientHttpTest {
         }
         replies.add(new Reply(200, firstPage.append(']').toString()));
         replies.add(new Reply(200, "[" + category(201) + "]"));
+        replies.add(new Reply(200, "[]"));
 
         List<Category> categories = client.streamCategories().toList();
 
