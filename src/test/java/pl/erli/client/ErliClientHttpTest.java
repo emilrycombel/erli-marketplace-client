@@ -15,6 +15,7 @@ import java.time.Duration;
 import org.springframework.web.client.ResourceAccessException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -24,7 +25,11 @@ class ErliClientHttpTest {
 
     record Recorded(String method, String path, String query, String auth, String body) {}
 
-    record Reply(int status, String body) {}
+    record Reply(int status, String body, Map<String, String> headers) {
+        Reply(int status, String body) {
+            this(status, body, Map.of());
+        }
+    }
 
     private HttpServer server;
     private final List<Recorded> requests = new ArrayList<>();
@@ -57,6 +62,7 @@ class ErliClientHttpTest {
         if (reply == null) reply = new Reply(500, "{\"message\":\"no reply queued\"}");
         byte[] bytes = reply.body().getBytes(StandardCharsets.UTF_8);
         ex.getResponseHeaders().add("Content-Type", "application/json");
+        reply.headers().forEach(ex.getResponseHeaders()::add);
         ex.sendResponseHeaders(reply.status(), bytes.length == 0 ? -1 : bytes.length);
         if (bytes.length > 0) ex.getResponseBody().write(bytes);
         ex.close();
@@ -234,6 +240,19 @@ class ErliClientHttpTest {
 
         assertEquals("a", client.getProduct("a").externalId());
         assertEquals(2, requests.size());
+    }
+
+    @Test
+    void waitsForRetryAfterBeforeRetrying() {
+        replies.add(new Reply(429, "{}", Map.of("Retry-After", "1")));
+        replies.add(new Reply(200, product("a")));
+
+        long start = System.nanoTime();
+        client.getProduct("a");
+        long elapsedMs = (System.nanoTime() - start) / 1_000_000;
+
+        assertEquals(2, requests.size());
+        assertTrue(elapsedMs >= 900, "retried after only " + elapsedMs + "ms");
     }
 
     @Test

@@ -29,7 +29,7 @@ public class RateLimitInterceptor implements ClientHttpRequestInterceptor {
         int attempt = 0;
         while (response.getStatusCode().value() == 429 && attempt < maxRetries) {
             attempt++;
-            long delay = initialDelayMs * (1L << (attempt - 1));
+            long delay = retryDelayMs(response, attempt);
             log.info("Rate limited (429), retry {}/{} after {}ms for {} {}",
                     attempt, maxRetries, delay, request.getMethod(), request.getURI());
             try {
@@ -43,5 +43,13 @@ public class RateLimitInterceptor implements ClientHttpRequestInterceptor {
         }
 
         return response;
+    }
+
+    private long retryDelayMs(ClientHttpResponse response, int attempt) {
+        long backoff = initialDelayMs * (1L << (attempt - 1));
+        if (response.getHeaders().getFirst("Retry-After") == null) {
+            return backoff;
+        }
+        return Math.max(backoff, ErliErrorHandler.parseRetryAfter(response).toMillis());
     }
 }
